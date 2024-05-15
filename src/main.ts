@@ -1,26 +1,104 @@
-import * as core from '@actions/core'
-import { wait } from './wait'
+import * as core from "@actions/core";
+import * as github from "@actions/github";
+import { wait } from "./wait";
+import * as octokitTypes from "@octokit/openapi-types";
+import semver from "semver/preload";
 
-/**
- * The main function for the action.
- * @returns {Promise<void>} Resolves when the action is complete.
- */
-export async function run(): Promise<void> {
+type Octokit = ReturnType<typeof github.getOctokit>;
+type PullRequest = octokitTypes.components["schemas"]["pull-request"];
+
+const patch = "patch";
+const minor = "minor";
+const major = "major";
+const noRelease = "no-release";
+
+const validLabels = [
+  patch,
+  minor,
+  major,
+  noRelease,
+];
+
+const validatePullRequestLabel = (pr: PullRequest) => {
+
+  if (!pr.labels.some((it) => validLabels.includes(it.name)))
+    throw new Error(`Please set one of the following label must be set : ${validLabels.join(", ")}`);
+
+  const count = pr.labels.filter((it) => validLabels.includes(it.name)).length;
+  if (count != 1)
+    throw new Error("Exactly one label must be set");
+};
+
+const pullRequestFromCommitSha = async (octokit: Octokit): Promise<PullRequest> => {
+  // https://docs.github.com/en/rest/commits/commits?apiVersion=2022-11-28#list-pull-requests-associated-with-a-commit
+
+  const prList = await octokit.request("GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls", {
+    ...github.context.repo,
+    commit_sha: github.context.sha,
+    headers: {
+      "X-GitHub-Api-Version": "2022-11-28"
+    }
+  });
+
+  if (prList.data.length == 0)
+    throw new Error(`Cannot find any Pull Request associated with ${github.context.sha}`);
+
+  if (prList.data.length != 1)
+    throw new Error(`Multiple Pull Requests found for ${github.context.sha}`);
+
+  return prList.data[0] as PullRequest;
+};
+
+const publishGitTag = async (octokit: Octokit): Promise<string> => {
+  const pr = await pullRequestFromCommitSha(octokit);
+
+  validatePullRequestLabel(pr);
+
+  const bump = pr.labels.filter((it) => validLabels.includes(it.name))[0].name;
+
+  let tagsList = await octokit.paginate(
+    octokit.rest.repos.listTags,
+    {
+      ...github.context.repo,
+    },
+    (resp) => {
+      return resp.data.filter((tag) => semver.valid(tag.name) !== null);
+    }
+  );
+
+  tagsList = tagsList.sort((x, y) => semver.compare(x.name, y.name));
+
+  // if (tagsList.length == 0) {
+  //   return null;
+  // }
+
+  const latestTag = tagsList[0];
+  let newTag: string
+
+
+
+};
+
+const main = async (): Promise<void> => {
   try {
-    const ms: string = core.getInput('milliseconds')
 
-    // Debug logs are only output if the `ACTIONS_STEP_DEBUG` secret is true
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    const octokit = github.getOctokit(core.getInput("github_token"));
 
-    // Log the current timestamp, wait, then log the new timestamp
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    // Running on PR
+    if (github.context.payload.pull_request) {
+      const pr = await octokit.rest.pulls.get({
+        ...github.context.repo,
+        pull_number: github.context.payload.pull_request.number
+      });
 
-    // Set outputs for other workflow steps to use
-    core.setOutput('time', new Date().toTimeString())
+      validatePullRequestLabel(pr.data);
+
+      // PR has been merged
+    } else
+      await publishGitTag(octokit);
+
   } catch (error) {
     // Fail the workflow run if an error occurs
-    if (error instanceof Error) core.setFailed(error.message)
+    if (error instanceof Error) core.setFailed(error.message);
   }
-}
+};

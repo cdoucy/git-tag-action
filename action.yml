@@ -1,23 +1,19 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Git tag'
+description: 'Automated git tag on PR merge'
+author: 'Clément Doucy'
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
   icon: 'heart'
   color: 'red'
 
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  github_token:
+    description: GitHub token to authenticate against GitHub API
     required: true
-    default: '1000'
 
-# Define your outputs here.
 outputs:
-  time:
-    description: 'Your output description here'
+  tag:
+    description: 'The publish git tag'
 
 runs:
   using: node20
