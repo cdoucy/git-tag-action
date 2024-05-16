@@ -16,7 +16,7 @@ const validLabels = [
   patch,
   minor,
   major,
-  noRelease,
+  noRelease
 ];
 
 const validatePullRequestLabel = (pr: PullRequest) => {
@@ -49,17 +49,11 @@ const pullRequestFromCommitSha = async (octokit: Octokit): Promise<PullRequest> 
   return prList.data[0] as PullRequest;
 };
 
-const publishGitTag = async (octokit: Octokit): Promise<string> => {
-  const pr = await pullRequestFromCommitSha(octokit);
-
-  validatePullRequestLabel(pr);
-
-  const bump = pr.labels.filter((it) => validLabels.includes(it.name))[0].name;
-
+const getLatestTag = async (octokit: Octokit): Promise<string | null> => {
   let tagsList = await octokit.paginate(
     octokit.rest.repos.listTags,
     {
-      ...github.context.repo,
+      ...github.context.repo
     },
     (resp) => {
       return resp.data.filter((tag) => semver.valid(tag.name) !== null);
@@ -68,15 +62,50 @@ const publishGitTag = async (octokit: Octokit): Promise<string> => {
 
   tagsList = tagsList.sort((x, y) => semver.compare(x.name, y.name));
 
-  // if (tagsList.length == 0) {
-  //   return null;
-  // }
+  if (tagsList.length == 0)
+    return null;
 
-  const latestTag = tagsList[0];
-  let newTag: string
+  return tagsList[0].name;
+};
 
+const publishTag = async (octokit: Octokit, tag: string): Promise<void> => {
+  core.info(`Tagging ${github.context.sha} with tag ${tag}`);
 
+  await octokit.rest.git.createRef(
+    {
+      ...github.context.repo,
+      ref: `refs/tags/${tag}`,
+      sha: github.context.sha
+    }
+  );
+};
 
+const incrementTag = (tag: string, bump: string): string => {
+  let newTag = semver.inc(tag, bump as semver.ReleaseType);
+  if (newTag === null)
+    throw new Error(`failed to increment tag "${tag}" with bump ${bump}`);
+
+  return newTag as string;
+};
+
+const publishGitTag = async (octokit: Octokit): Promise<string> => {
+  const pr = await pullRequestFromCommitSha(octokit);
+
+  validatePullRequestLabel(pr);
+
+  const bump = pr.labels.filter((it) => validLabels.includes(it.name))[0].name;
+
+  const latestTag = await getLatestTag(octokit);
+  let newTag: string;
+
+  if (latestTag === null)
+    newTag = core.getInput("initial_tag");
+  else
+    newTag = incrementTag(latestTag, bump);
+
+  await publishTag(octokit, newTag);
+
+  return newTag;
 };
 
 const main = async (): Promise<void> => {
@@ -94,11 +123,15 @@ const main = async (): Promise<void> => {
       validatePullRequestLabel(pr.data);
 
       // PR has been merged
-    } else
-      await publishGitTag(octokit);
+    } else {
+      const newTag = await publishGitTag(octokit);
+      core.setOutput("tag", newTag);
+    }
 
   } catch (error) {
     // Fail the workflow run if an error occurs
     if (error instanceof Error) core.setFailed(error.message);
   }
 };
+
+export { main };

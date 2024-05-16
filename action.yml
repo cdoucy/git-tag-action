@@ -11,6 +11,11 @@ inputs:
     description: GitHub token to authenticate against GitHub API
     required: true
 
+  initial_tag:
+    description: Default tag to publish for the first tag
+    default: '1.0.0'
+    required: false
+
 outputs:
   tag:
     description: 'The publish git tag'
