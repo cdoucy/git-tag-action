@@ -91,12 +91,11 @@ const publishGitTag = async (octokit: Octokit): Promise<string> => {
 
   validatePullRequestLabel(pr)
 
-  const bump = pr.labels.filter(it => validLabels.includes(it.name))[0].name;
-
+  const bump = pr.labels.filter(it => validLabels.includes(it.name))[0].name
 
   if (bump === noRelease) {
-    core.info(`${noRelease} label detected, skipping release`);
-    return "";
+    core.info(`${noRelease} label detected, skipping release`)
+    return ''
   }
 
   const latestTag = await getLatestTag(octokit)
