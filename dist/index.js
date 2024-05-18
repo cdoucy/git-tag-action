@@ -31779,7 +31779,7 @@ const noRelease = 'no-release';
 const validLabels = [patch, minor, major, noRelease];
 const validatePullRequestLabel = (pr) => {
     if (!pr.labels.some(it => validLabels.includes(it.name)))
-        throw new Error(`Please set one of the following label must be set : ${validLabels.join(', ')}`);
+        throw new Error(`Please set one of the following label : ${validLabels.join(', ')}`);
     const count = pr.labels.filter(it => validLabels.includes(it.name)).length;
     if (count !== 1)
         throw new Error('Exactly one label must be set');
@@ -31828,6 +31828,10 @@ const publishGitTag = async (octokit) => {
     const pr = await pullRequestFromCommitSha(octokit);
     validatePullRequestLabel(pr);
     const bump = pr.labels.filter(it => validLabels.includes(it.name))[0].name;
+    if (bump === noRelease) {
+        core.info(`${noRelease} label detected, skipping release`);
+        return '';
+    }
     const latestTag = await getLatestTag(octokit);
     let newTag;
     if (latestTag === null)
