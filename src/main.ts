@@ -16,7 +16,7 @@ const validLabels = [patch, minor, major, noRelease]
 const validatePullRequestLabel = (pr: PullRequest): void => {
   if (!pr.labels.some(it => validLabels.includes(it.name)))
     throw new Error(
-      `Please set one of the following label must be set : ${validLabels.join(', ')}`
+      `Please set one of the following label : ${validLabels.join(', ')}`
     )
 
   const count = pr.labels.filter(it => validLabels.includes(it.name)).length
