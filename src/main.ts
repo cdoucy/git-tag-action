@@ -61,7 +61,7 @@ const getLatestTag = async (octokit: Octokit): Promise<string | null> => {
     }
   )
 
-  tagsList = tagsList.sort((x, y) => semver.compare(x.name, y.name))
+  tagsList = tagsList.sort((x, y) => semver.compare(y.name, x.name))
 
   if (tagsList.length === 0) return null
 
@@ -101,8 +101,17 @@ const publishGitTag = async (octokit: Octokit): Promise<string> => {
   const latestTag = await getLatestTag(octokit)
   let newTag: string
 
-  if (latestTag === null) newTag = core.getInput('initial_tag')
-  else newTag = incrementTag(latestTag, bump)
+  if (latestTag === null) {
+    newTag = core.getInput('initial_tag')
+
+    core.info(
+      `Did not find any existing valid tags, using ${newTag} by default`
+    )
+  } else {
+    core.info(`Current latest tag is ${latestTag}`)
+
+    newTag = incrementTag(latestTag, bump)
+  }
 
   await publishTag(octokit, newTag)
 
