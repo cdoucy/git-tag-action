@@ -31805,7 +31805,7 @@ const getLatestTag = async (octokit) => {
     }, resp => {
         return resp.data.filter(tag => preload_1.default.valid(tag.name) !== null);
     });
-    tagsList = tagsList.sort((x, y) => preload_1.default.compare(x.name, y.name));
+    tagsList = tagsList.sort((x, y) => preload_1.default.compare(y.name, x.name));
     if (tagsList.length === 0)
         return null;
     return tagsList[0].name;
@@ -31834,10 +31834,14 @@ const publishGitTag = async (octokit) => {
     }
     const latestTag = await getLatestTag(octokit);
     let newTag;
-    if (latestTag === null)
+    if (latestTag === null) {
         newTag = core.getInput('initial_tag');
-    else
+        core.info(`Did not find any existing valid tags, using ${newTag} by default`);
+    }
+    else {
+        core.info(`Current latest tag is ${latestTag}`);
         newTag = incrementTag(latestTag, bump);
+    }
     await publishTag(octokit, newTag);
     return newTag;
 };
